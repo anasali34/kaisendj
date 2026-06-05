@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="ku">
+<head>
+<meta charset="UTF-8">
+<title>سیستەمی فرۆشتن</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<style>
+body{margin:0;font-family:Arial;background:#eef2f7;}
+
+/* LOGIN */
+.login{
+  height:100vh;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  background:linear-gradient(135deg,#0d47a1,#42a5f5);
+}
+
+.box{
+  background:#fff;
+  padding:20px;
+  width:300px;
+  border-radius:10px;
+  text-align:center;
+}
+
+input{
+  width:100%;
+  padding:8px;
+  margin:5px 0;
+}
+
+button{
+  width:100%;
+  padding:8px;
+  margin-top:5px;
+  background:#1976d2;
+  color:#fff;
+  border:none;
+  border-radius:6px;
+}
+
+.app{display:none;padding:10px;}
+
+.card{
+  background:#fff;
+  padding:10px;
+  margin:8px 0;
+  border-radius:10px;
+}
+
+.footer{
+  position:fixed;
+  bottom:0;
+  left:0;
+  right:0;
+  background:#fff;
+  padding:5px;
+  text-align:center;
+}
+</style>
+</head>
+
+<body>
+
+<!-- LOGIN -->
+<div class="login" id="loginBox">
+<div class="box">
+<h3>🔐 چوونەژوورەوە</h3>
+<input id="user" placeholder="user">
+<input id="pass" type="password" placeholder="pass">
+<button onclick="login()">Login</button>
+</div>
+</div>
+
+<!-- APP -->
+<div class="app" id="app">
+
+<h3>📦 کاڵاکان</h3>
+
+<input id="pname" placeholder="ناو">
+<input id="pprice" placeholder="نرخ">
+<input id="pcost" placeholder="تێچوو">
+<input id="pstock" placeholder="ستۆک">
+
+<button onclick="addProduct()">زیادکردن</button>
+
+<div id="plist"></div>
+
+<hr>
+
+<h3>🛒 سەبەتە</h3>
+
+<input id="customer" placeholder="ناوی کڕیار">
+<input id="phone" placeholder="ژمارە">
+
+<div id="cartBox"></div>
+
+<button onclick="sell()">فرۆشتن</button>
+<button onclick="pdf()">PDF</button>
+<button onclick="whatsapp()">WhatsApp</button>
+
+</div>
+
+<!-- FOOTER -->
+<div class="footer">
+💵 فرۆشتن: <span id="sales">0</span> $
+| 💰 قازانج: <span id="profit">0</span> $
+</div>
+
+<script>
+
+let users=[
+  {u:"admin",p:"1122",role:"admin"},
+  {u:"staff",p:"1234",role:"staff"}
+];
+
+let currentUser=null;
+
+let products=JSON.parse(localStorage.getItem("products")||"[]");
+let cart=[];
+let customers={};
+
+let sales=0;
+let profit=0;
+
+/* LOGIN */
+function login(){
+
+  currentUser = users.find(x =>
+    x.u===user.value && x.p===pass.value
+  );
+
+  if(!currentUser){
+    alert("هەڵەی لۆگین");
+    return;
+  }
+
+  loginBox.style.display="none";
+  app.style.display="block";
+
+  render();
+}
+
+/* SAVE */
+function save(){
+  localStorage.setItem("products",JSON.stringify(products));
+}
+
+/* ADD PRODUCT */
+function addProduct(){
+
+  if(currentUser.role!=="admin"){
+    alert("تەنها ئەدمین");
+    return;
+  }
+
+  products.push({
+    name:pname.value,
+    price:+pprice.value,
+    cost:+pcost.value,
+    stock:+pstock.value
+  });
+
+  save();
+  render();
+}
+
+/* DELETE */
+function del(i){
+
+  if(currentUser.role!=="admin") return;
+
+  if(!confirm("دڵنیایت؟")) return;
+
+  products.splice(i,1);
+
+  save();
+  render();
+}
+
+/* ADD TO CART */
+function addToCart(i){
+
+  let p=products[i];
+
+  let f=cart.find(x=>x.name===p.name);
+
+  if(f) f.qty++;
+  else cart.push({...p,qty:1});
+
+  renderCart();
+}
+
+/* SELL (FIXED) */
+function sell(){
+
+  if(cart.length===0){
+    alert("سەبەتە خالیە");
+    return;
+  }
+
+  let name=customer.value;
+  let phone=phone.value;
+
+  let total=0;
+  let cost=0;
+
+  cart.forEach(i=>{
+    let p=products.find(x=>x.name===i.name);
+    if(!p) return;
+
+    if(p.stock < i.qty){
+      alert("ستۆک کەمە");
+      return;
+    }
+
+    p.stock -= i.qty;
+
+    total += i.price*i.qty;
+    cost += i.cost*i.qty;
+  });
+
+  sales += total;
+  profit += (total - cost);
+
+  if(!customers[name]){
+    customers[name]={phone,debt:0};
+  }
+
+  customers[name].debt += total;
+
+  cart=[];
+
+  save();
+  render();
+  renderCart();
+
+  alert("✔ فرۆشتن تەواو");
+}
+
+/* WHATSAPP */
+function whatsapp(){
+
+  let name=customer.value;
+  let c=customers[name];
+
+  let text="🧾 فاکتۆر\n👤 "+name+"\n\n";
+
+  cart.forEach(i=>{
+    text+=i.name+" x"+i.qty+"\n";
+  });
+
+  window.open("https://wa.me/"+c.phone+"?text="+encodeURIComponent(text));
+}
+
+/* PDF */
+function pdf(){
+
+  const {jsPDF}=window.jspdf;
+  let pdf=new jsPDF();
+
+  let y=15;
+
+  pdf.setFillColor(25,118,210);
+  pdf.rect(0,0,220,25,"F");
+
+  pdf.setTextColor(255,255,255);
+  pdf.text("فاکتۆری فرۆشتن",60,15);
+
+  pdf.setTextColor(0,0,0);
+
+  y=40;
+
+  pdf.text("کڕیار: "+customer.value,10,y);
+  y+=10;
+
+  pdf.text("بەروار: "+new Date().toLocaleString(),10,y);
+  y+=15;
+
+  let total=0;
+
+  cart.forEach(i=>{
+    let sum=i.price*i.qty;
+    total+=sum;
+
+    pdf.text(i.name+" x"+i.qty+" = "+sum+"$",10,y);
+    y+=10;
+  });
+
+  y+=10;
+
+  pdf.setFillColor(25,118,210);
+  pdf.rect(10,y,180,10,"F");
+
+  pdf.setTextColor(255,255,255);
+  pdf.text("کۆی گشتی: "+total+"$",60,y+7);
+
+  pdf.save("invoice.pdf");
+}
+
+/* RENDER */
+function render(){
+
+  plist.innerHTML="";
+
+  products.forEach((p,i)=>{
+    plist.innerHTML+=`
+      <div class="card">
+        📦 ${p.name} - ${p.price}$ - ستۆک:${p.stock}
+
+        <button onclick="addToCart(${i})">+</button>
+
+        ${currentUser.role==="admin"
+          ? `<button onclick="del(${i})" style="background:red;color:white;">🗑</button>`
+          : ""
+        }
+      </div>
+    `;
+  });
+
+  salesSpan.innerText=sales;
+  profitSpan.innerText=profit;
+}
+
+function renderCart(){
+
+  cartBox.innerHTML="";
+
+  let total=0;
+
+  cart.forEach(i=>{
+    total+=i.price*i.qty;
+
+    cartBox.innerHTML+=`
+      <div class="card">
+        ${i.name} x${i.qty}
+      </div>
+    `;
+  });
+}
+
+</script>
+
+</body>
+</html>
