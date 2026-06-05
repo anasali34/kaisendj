@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="ku">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>سیستەمی فرۆشتنی کوردی PRO</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<style>
+body{
+  margin:0;
+  font-family:Arial;
+  background:#eef2f7;
+}
+
+/* LOGIN BACKGROUND */
+.login{
+  height:100vh;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  background:linear-gradient(135deg,#0d47a1,#42a5f5);
+  overflow:hidden;
+}
+
+/* LOGIN BOX */
+.box{
+  background:rgba(255,255,255,0.15);
+  backdrop-filter:blur(10px);
+  padding:20px;
+  width:330px;
+  border-radius:18px;
+  text-align:center;
+  animation:pop 1s ease;
+  color:white;
+}
+
+/* TITLE */
+.title{
+  font-size:18px;
+  font-weight:bold;
+  animation:glow 2s infinite alternate;
+}
+
+@keyframes glow{
+  from{text-shadow:0 0 5px #fff;}
+  to{text-shadow:0 0 20px #00e5ff;}
+}
+
+/* INPUT */
+input{
+  width:100%;
+  padding:10px;
+  margin:5px 0;
+  border:none;
+  border-radius:10px;
+}
+
+/* BUTTON */
+button{
+  width:100%;
+  padding:10px;
+  border:none;
+  border-radius:10px;
+  background:#00e5ff;
+  font-weight:bold;
+  cursor:pointer;
+}
+
+/* FINGERPRINT */
+.finger{
+  width:80px;
+  height:80px;
+  border-radius:50%;
+  border:2px solid #fff;
+  margin:auto;
+  position:relative;
+  overflow:hidden;
+}
+
+.finger::before{
+  content:"";
+  position:absolute;
+  width:100%;
+  height:6px;
+  background:#00e5ff;
+  animation:scan 2s linear infinite;
+  box-shadow:0 0 10px #00e5ff;
+}
+
+@keyframes scan{
+  0%{top:-10px;}
+  50%{top:40px;}
+  100%{top:100px;}
+}
+
+/* APP */
+.app{
+  display:none;
+  padding:10px;
+}
+
+.card{
+  background:#fff;
+  padding:10px;
+  margin:8px 0;
+  border-radius:10px;
+}
+
+/* FOOTER */
+.footer{
+  position:fixed;
+  bottom:0;
+  left:0;
+  right:0;
+  background:#fff;
+  padding:5px;
+  font-size:12px;
+  text-align:center;
+}
+</style>
+</head>
+
+<body>
+
+<!-- LOGIN -->
+<div class="login" id="loginBox">
+
+<div class="box">
+
+  <div class="finger"></div>
+
+  <div class="title">👨‍💻 دکتۆر ئایتی موستەفا</div>
+  <small>سیستەمی فرۆشتنی کوردی PRO</small>
+
+  <input id="user" placeholder="ناوی بەکارهێنەر">
+  <input id="pass" type="password" placeholder="وشەی نهێنی">
+
+  <button onclick="login()">چوونەژوورەوە</button>
+
+</div>
+</div>
+
+<!-- APP -->
+<div class="app" id="app">
+
+<h3>🏪 داشبۆرد</h3>
+
+<div class="card">
+💵 Sales: <span id="sales">0</span> $<br>
+💰 Profit: <span id="profit">0</span> $
+</div>
+
+<hr>
+
+<h3>📦 کاڵا</h3>
+
+<input id="pname" placeholder="ناو">
+<input id="pprice" placeholder="نرخ">
+<input id="pcost" placeholder="cost">
+<input id="pstock" placeholder="stock">
+
+<button onclick="addProduct()">زیادکردن</button>
+
+<div id="plist"></div>
+
+<hr>
+
+<h3>🛒 سەبەتە</h3>
+
+<input id="customer" placeholder="کڕیار">
+
+<div id="cartBox"></div>
+
+<button onclick="sell()">💰 فرۆشتن</button>
+<button onclick="pdf()">📄 PDF</button>
+
+<hr>
+
+<h3>📜 Audit Log</h3>
+<div id="logs"></div>
+
+</div>
+
+<script>
+
+let users=[
+  {u:"admin",p:"1122",role:"admin"},
+  {u:"cashier",p:"1234",role:"cashier"},
+  {u:"admin2",p:"2222",role:"admin"}
+];
+
+let currentUser=null;
+
+let products=[];
+let cart=[];
+let logs=[];
+
+let sales=0;
+let profit=0;
+
+/* LOGIN */
+function login(){
+
+  currentUser=users.find(x=>x.u==user.value && x.p==pass.value);
+
+  if(!currentUser){
+    alert("هەڵە");
+    return;
+  }
+
+  loginBox.style.display="none";
+  app.style.display="block";
+
+  log("login",currentUser.u);
+
+  render();
+}
+
+/* LOG */
+function log(action,item){
+  logs.push({
+    user:currentUser.u,
+    action,
+    item,
+    time:new Date().toLocaleString()
+  });
+
+  renderLogs();
+}
+
+function renderLogs(){
+
+  logsBox.innerHTML="";
+
+  logs.forEach(l=>{
+    logsBox.innerHTML+=`
+      <div class="card">
+        👤 ${l.user}<br>
+        ⚡ ${l.action}<br>
+        📦 ${l.item}<br>
+        🕒 ${l.time}
+      </div>
+    `;
+  });
+}
+
+/* ADD PRODUCT */
+function addProduct(){
+
+  if(currentUser.role=="cashier"){
+    alert("⛔ cashier ناتوانێت");
+    return;
+  }
+
+  products.push({
+    name:pname.value,
+    price:+pprice.value,
+    cost:+pcost.value,
+    stock:+pstock.value
+  });
+
+  log("add product",pname.value);
+
+  render();
+}
+
+/* DELETE ADMIN ONLY */
+function del(i){
+
+  if(currentUser.role!="admin"){
+    alert("⛔ تەنها ئەدمین");
+    return;
+  }
+
+  log("delete",products[i].name);
+
+  products.splice(i,1);
+  render();
+}
+
+/* ADD CART */
+function addToCart(i){
+
+  let p=products[i];
+
+  let f=cart.find(x=>x.name==p.name);
+
+  if(f) f.qty++;
+  else cart.push({...p,qty:1});
+
+  log("cart",p.name);
+
+  renderCart();
+}
+
+/* SELL */
+function sell(){
+
+  let sale=0;
+  let cost=0;
+
+  cart.forEach(i=>{
+    let p=products.find(x=>x.name==i.name);
+    if(p) p.stock-=i.qty;
+
+    sale+=i.price*i.qty;
+    cost+=i.cost*i.qty;
+  });
+
+  sales+=sale;
+  profit+=(sale-cost);
+
+  log("sell",sale+"$");
+
+  cart=[];
+
+  render();
+  renderCart();
+  updateDash();
+
+  alert("✔ فرۆشتن تەواو");
+}
+
+/* RENDER */
+function render(){
+
+  plist.innerHTML="";
+
+  products.forEach((p,i)=>{
+    plist.innerHTML+=`
+      <div class="card">
+        🛒 ${p.name}<br>
+        💵 ${p.price}$ | 📦 ${p.stock}
+
+        <button onclick="addToCart(${i})">زیادکردن</button>
+        <button onclick="del(${i})" style="background:red">سڕینەوە</button>
+      </div>
+    `;
+  });
+
+  renderCart();
+}
+
+/* CART */
+function renderCart(){
+
+  cartBox.innerHTML="";
+  let total=0;
+
+  cart.forEach(i=>{
+    total+=i.price*i.qty;
+
+    cartBox.innerHTML+=`
+      <div class="card">
+        ${i.name} x${i.qty} = ${i.price*i.qty}$
+      </div>
+    `;
+  });
+
+  salesSpan.innerText=sales.toFixed(2);
+  profitSpan.innerText=profit.toFixed(2);
+}
+
+/* DASH */
+function updateDash(){
+  salesSpan.innerText=sales.toFixed(2);
+  profitSpan.innerText=profit.toFixed(2);
+}
+
+/* PDF */
+function pdf(){
+
+  const {jsPDF}=window.jspdf;
+  let doc=new jsPDF();
+
+  let y=10;
+  let total=0;
+
+  doc.text("فاکتۆری فرۆشتن",10,y);y+=10;
+
+  cart.forEach(i=>{
+    doc.text(i.name+" x"+i.qty+" = "+i.price*i.qty,10,y);
+    y+=10;
+    total+=i.price*i.qty;
+  });
+
+  doc.text("کۆی: "+total+"$",10,y);
+
+  doc.save("invoice.pdf");
+}
+
+render();
+
+</script>
+
+</body>
+</html>
